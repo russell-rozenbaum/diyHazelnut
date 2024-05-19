@@ -112,13 +112,23 @@ module Hexp = {
 };
 */
 
-let matched_arrow = (t: Htyp.t): (option(Htyp.t), option(Htyp.t)) => {
+let matched_arrow = (t: Htyp.t) : (option(Htyp.t), option(Htyp.t)) => {
   switch(t) {
     | Arrow(t_in, t_out) => (Some(t_in), Some(t_out))
     | Hole => (Some(Hole), Some(Hole))
     | _ => (None, None);
   }
 };
+
+let consistent = (t: Htyp.t, t': Htyp.t) : bool => {
+  switch(t) {
+    | Hole => true
+    | t => switch(t') {
+      | Hole => true
+      | t' => t == t'
+    }
+  }
+}
 
 let rec syn = (ctx: typctx, e: Hexp.t): option(Htyp.t) => {
   switch (e) {
@@ -144,13 +154,25 @@ let rec syn = (ctx: typctx, e: Hexp.t): option(Htyp.t) => {
 }
 
 and ana = (ctx: typctx, e: Hexp.t, t: Htyp.t): bool => {
-  // Used to suppress unused variable warnings
-  // Okay to remove
-  let _ = ctx;
-  let _ = e;
-  let _ = t;
-
-  raise(Unimplemented);
+  switch(e) {
+    | Lam(x, e') => 
+      let (t_in, t_out) = matched_arrow(t);
+      switch(t_in) {
+        | Some(t_in') => 
+        switch(t_out) {
+          | Some(t_out') =>  
+            let ctx' = TypCtx.add(x, t_in', ctx); 
+            ana(ctx', e', t_out')
+          | None => false
+        }
+        | None => false
+      }
+    | _ => 
+      switch(syn(ctx, e)) {
+        | Some(t') => consistent(t, t')
+        | None => false
+      }
+  }
 };
 
 let syn_action =
