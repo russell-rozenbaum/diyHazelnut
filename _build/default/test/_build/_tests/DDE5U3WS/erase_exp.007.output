@@ -1,6 +1,0 @@
-[exception] Hazelnut_lib.Hazelnut.Unimplemented
-            Raised at Hazelnut_lib__Hazelnut.erase_exp in file "hazelnut/hazelnut.re", line 97, characters 2-23
-            Called from Test_erase_exp.test_eelam_2 in file "test/Test_erase_exp.re", line 60, characters 31-53
-            Called from Alcotest_engine__Core.Make.protect_test.(fun) in file "src/alcotest-engine/core.ml", line 181, characters 17-23
-            Called from Alcotest_engine__Monad.Identity.catch in file "src/alcotest-engine/monad.ml", line 24, characters 31-35
-            

@@ -89,12 +89,27 @@ type typctx = TypCtx.t(Htyp.t);
 
 exception Unimplemented;
 
-let erase_exp = (e: Zexp.t): Hexp.t => {
-  // Used to suppress unused variable warnings
-  // Okay to remove
-  let _ = e;
+let rec erase_typ = (t: Ztyp.t) : Htyp.t => {
+  switch(t) {
+    | Cursor(ht) => ht
+    | LArrow(t', ht) => Arrow(erase_typ(t'), ht)
+    | RArrow(ht, t') => Arrow(ht, erase_typ(t'))
+  }
+}
 
-  raise(Unimplemented);
+// Expression Cursor Erasure
+let rec erase_exp = (e: Zexp.t) : Hexp.t => {
+  switch(e) {
+    | Cursor(he') => he'
+    | Lam(x, ze') => Lam(x, erase_exp(ze'))
+    | LAp(ze', he') => Ap(erase_exp(ze'), he')
+    | RAp(he', ze') => Ap(he', erase_exp(ze'))
+    | LPlus(ze', he') => Plus(erase_exp(ze'), he')
+    | RPlus(he', ze') => Plus(he', erase_exp(ze'))
+    | LAsc(ze', ht') =>  Asc(erase_exp(ze'), ht')
+    | RAsc(he', zt') => Asc(he', erase_typ(zt'))
+    | NEHole(ze') => NEHole(erase_exp(ze'))
+  }
 };
 
 /* 
@@ -115,8 +130,11 @@ module Hexp = {
 // Function Type Matching
 let matched_arrow = (t: Htyp.t) : (option(Htyp.t), option(Htyp.t)) => {
   switch(t) {
+    // MAArr
     | Arrow(t_in, t_out) => (Some(t_in), Some(t_out))
+    // MAHole
     | Hole => (Some(Hole), Some(Hole))
+    // Exhaust
     | _ => (None, None);
   }
 };
@@ -139,7 +157,9 @@ let rec consistent = (t: Htyp.t, t': Htyp.t) : bool => {
 // Synthesis and Analysis
 let rec syn = (ctx: typctx, e: Hexp.t): option(Htyp.t) => {
   switch (e) {
+    // SVar
     | Var(x) => TypCtx.find_opt(x, ctx)
+    // SAp
     | Ap(e_1, e_2) => 
       let* t = syn(ctx, e_1);
       let (t_in, t_out) = matched_arrow(t);
@@ -147,33 +167,37 @@ let rec syn = (ctx: typctx, e: Hexp.t): option(Htyp.t) => {
         | Some(t_in') => ana(ctx, e_2, t_in') ? t_out : None
         | _ => None
       }
+    // SNum
     | Lit(_) => Some(Num)
+    // SPlus
     | Plus(e_1, e_2) => (ana(ctx, e_1, Num) && ana(ctx, e_2, Num))
       ? Some(Num) : None
+    // SAsc
     | Asc(e', t) => ana(ctx, e', t) ? Some(t) : None 
+    // SHole
     | EHole => Some(Hole)
+    // SNEHole
     | NEHole(e') => switch(syn(ctx, e')) {
       | Some(_) => Some(Hole)
       | _ => None
     }
+    // Exhaust
     | _ => None
   }
 }
 
 and ana = (ctx: typctx, e: Hexp.t, t: Htyp.t): bool => {
   switch(e) {
+    // ALam
     | Lam(x, e') => 
       let (t_in, t_out) = matched_arrow(t);
-      switch(t_in) {
-        | Some(t_in') => 
-        switch(t_out) {
-          | Some(t_out') =>  
-            let ctx' = TypCtx.add(x, t_in', ctx); 
-            ana(ctx', e', t_out')
-          | None => false
-        }
-        | None => false
+      switch(t_in, t_out) {
+        | (Some(t_in'), Some(t_out')) => 
+        let ctx' = TypCtx.add(x, t_in', ctx); 
+        ana(ctx', e', t_out')
+        | _ => false
       }
+    // ASubsume
     | _ => 
       switch(syn(ctx, e)) {
         | Some(t') => consistent(t, t')
