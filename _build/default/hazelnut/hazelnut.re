@@ -112,6 +112,7 @@ module Hexp = {
 };
 */
 
+// Function Type Matching
 let matched_arrow = (t: Htyp.t) : (option(Htyp.t), option(Htyp.t)) => {
   switch(t) {
     | Arrow(t_in, t_out) => (Some(t_in), Some(t_out))
@@ -120,16 +121,22 @@ let matched_arrow = (t: Htyp.t) : (option(Htyp.t), option(Htyp.t)) => {
   }
 };
 
-let consistent = (t: Htyp.t, t': Htyp.t) : bool => {
-  switch(t) {
-    | Hole => true
-    | t => switch(t') {
-      | Hole => true
-      | t' => t == t'
-    }
+// Type Compatibility
+let rec consistent = (t: Htyp.t, t': Htyp.t) : bool => {
+  switch(t, t') {
+    // TCHole1
+    | (_, Hole) => true
+    // TCHole2
+    | (Hole, _) => true
+    // TCArr
+    | (Arrow(t_in, t_out), Arrow(t_in', t_out')) => 
+    consistent(t_in, t_in') && consistent(t_out, t_out')
+    // TCRefl
+    | (_, _) => t == t'
   }
 }
 
+// Synthesis and Analysis
 let rec syn = (ctx: typctx, e: Hexp.t): option(Htyp.t) => {
   switch (e) {
     | Var(x) => TypCtx.find_opt(x, ctx)
@@ -175,6 +182,7 @@ and ana = (ctx: typctx, e: Hexp.t, t: Htyp.t): bool => {
   }
 };
 
+// Synthetic and Analytic Expression Actions
 let syn_action =
     (ctx: typctx, (e: Zexp.t, t: Htyp.t), a: Action.t)
     : option((Zexp.t, Htyp.t)) => {

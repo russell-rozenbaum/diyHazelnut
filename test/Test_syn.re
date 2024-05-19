@@ -58,6 +58,17 @@ let test_sap_2 = () => {
   check(htyp_typ, "same option(Hazelnut.Htyp.t)", given, expected);
 };
 
+/*
+let test_sap_3 = () => {
+  let ctx: typctx =
+    TypCtx.singleton("x", Hazelnut.Htyp.Arrow(Arrow(Num, Num), Num));
+  let he: Hazelnut.Hexp.t = Ap(Var("x"), Lam("y", Lit(1)));
+  let given: option(Hazelnut.Htyp.t) = Hazelnut.syn(ctx, he);
+  let expected: option(Hazelnut.Htyp.t) = Some(Hazelnut.Htyp.Num);
+  check(htyp_typ, "same option(Hazelnut.Htyp.t)", given, expected);
+};
+*/
+
 let test_snum_1 = () => {
   let ctx: typctx = TypCtx.empty;
   let he: Hazelnut.Hexp.t = Lit(1);
