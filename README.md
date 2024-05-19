@@ -1,6 +1,6 @@
 # diy-hazelnut
 
-A template for you to implement [Hazelnut](https://arxiv.org/pdf/1607.04180) yourself
+This template is derived from [diy-hazelnut](https://github.com/hazelgrove/diy-hazelnut). The implementations of the erase, synthesis, analysis, their repsective action functions, along with several other helper functions in the diyHazelnut/hazelnut file path are my own.
 
 ## Setup
 
