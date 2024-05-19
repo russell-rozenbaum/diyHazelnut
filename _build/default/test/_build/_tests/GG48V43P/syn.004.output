@@ -1,0 +1,7 @@
+[exception] Hazelnut_lib.Hazelnut.Unimplemented
+            Raised at Hazelnut_lib__Hazelnut.ana in file "hazelnut/hazelnut.re", line 153, characters 2-23
+            Called from Hazelnut_lib__Hazelnut.syn in file "hazelnut/hazelnut.re", line 130, characters 25-45
+            Called from Test_syn.test_sap_1 in file "test/Test_syn.re", line 47, characters 39-60
+            Called from Alcotest_engine__Core.Make.protect_test.(fun) in file "src/alcotest-engine/core.ml", line 181, characters 17-23
+            Called from Alcotest_engine__Monad.Identity.catch in file "src/alcotest-engine/monad.ml", line 24, characters 31-35
+            

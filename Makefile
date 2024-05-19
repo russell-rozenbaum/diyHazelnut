@@ -20,5 +20,5 @@ deps:
 	opam install dune reason incr_dom ocaml-lsp-server
 
 .PHONY: test
-test:
+tests:
 	dune test
