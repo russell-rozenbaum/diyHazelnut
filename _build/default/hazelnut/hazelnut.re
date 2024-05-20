@@ -112,21 +112,6 @@ let rec erase_exp = (e: Zexp.t) : Hexp.t => {
   }
 };
 
-/* 
-module Hexp = {
-  [@deriving (sexp, compare)]
-  type t =
-    | Var(string)
-    | Lam(string, t)
-    | Ap(t, t)
-    | Lit(int)
-    | Plus(t, t)
-    | Asc(t, Htyp.t)
-    | EHole
-    | NEHole(t);
-};
-*/
-
 // Function Type Matching
 let matched_arrow = (t: Htyp.t) : (option(Htyp.t), option(Htyp.t)) => {
   switch(t) {
@@ -206,18 +191,163 @@ and ana = (ctx: typctx, e: Hexp.t, t: Htyp.t): bool => {
   }
 };
 
-// Synthetic and Analytic Expression Actions
-let syn_action =
-    (ctx: typctx, (e: Zexp.t, t: Htyp.t), a: Action.t)
-    : option((Zexp.t, Htyp.t)) => {
-  // Used to suppress unused variable warnings
-  // Okay to remove
-  let _ = ctx;
-  let _ = e;
+/* 
+module Hexp = {
+  [@deriving (sexp, compare)]
+  type t =
+    | Var(string)
+    | Lam(string, t)
+    | Ap(t, t)
+    | Lit(int)
+    | Plus(t, t)
+    | Asc(t, Htyp.t)
+    | EHole
+    | NEHole(t);
+};
+*/
+
+/*
+module Zexp = {
+  [@deriving (sexp, compare)]
+  type t =
+    | Cursor(Hexp.t)
+    | Lam(string, t)
+    | LAp(t, Hexp.t)
+    | RAp(Hexp.t, t)
+    | LPlus(t, Hexp.t)
+    | RPlus(Hexp.t, t)
+    | LAsc(t, Htyp.t)
+    | RAsc(Hexp.t, Ztyp.t)
+    | NEHole(t);
+};
+*/
+
+/*
+// Type Actions
+let move_typ = (t: Ztyp.t, a: Action.t) : option(Ztyp.t) => {
   let _ = t;
   let _ = a;
 
   raise(Unimplemented);
+}
+*/
+
+// Expression Movement Actions
+let move_exp = (e: Zexp.t, d: Dir.t) : option(Zexp.t) => {
+  switch(d) {
+    | Parent => 
+    switch(e) {
+      // EMascParent1
+    | LAsc(z_e, h_t) => Some(Cursor(Asc(erase_exp(z_e), h_t)))
+    // EMascParent2
+    | RAsc(h_e, z_t) => Some(Cursor(Asc(h_e, erase_typ(z_t))))
+    // EMLamParent
+    | Lam(x, z_e) => Some(Cursor(Lam(x, erase_exp(z_e))))
+    // EMPlusParent1
+    | LPlus(z_e, h_e) => Some(Cursor(Plus(erase_exp(z_e), h_e)))
+    // EMPlusParent2
+    | RPlus(h_e, z_e) => Some(Cursor(Plus(h_e, erase_exp(z_e))))
+    // EMapParent1
+    | LAp(z_e, h_e) => Some(Cursor(Ap(erase_exp(z_e), h_e)))
+    // EmapParent2
+    | RAp(h_e, z_e) => Some(Cursor(Ap(h_e, erase_exp(z_e))))
+    // EMNEHoleParent
+    | NEHole(z_e) => Some(Cursor(NEHole(erase_exp(z_e))))
+    | _ => None
+    }
+    | Child(which) => 
+    switch(e) {
+      | Cursor(h_e) => 
+      switch(which, h_e) {
+        // EMAscChild1
+        | (One, Asc(h_e, h_t)) => Some(LAsc(Cursor(h_e), h_t))
+        // EMAscChild2
+        | (Two, Asc(h_e, h_t)) => Some(RAsc(h_e, Cursor(h_t)))
+        // EMLamChild1
+        | (One, Lam(x, h_e)) => Some(Lam(x, Cursor(h_e)))
+        // EMPlusChild1
+        | (One, Plus(h_e_l, h_e_r)) => Some(LPlus(Cursor(h_e_l), h_e_r))
+        // EMPlusChild2
+        | (Two, Plus(h_e_r, h_e_l)) => Some(RPlus(h_e_l, Cursor(h_e_r)))
+        // EMApChild1
+        | (One, Ap(h_e_1, h_e_2)) => Some(LAp(Cursor(h_e_1), h_e_2))
+        // EMApChild2
+        | (Two, Ap(h_e_1, h_e_2)) => Some(RAp(h_e_1, Cursor(h_e_2)))
+        // EMNEHoleChild1
+        | (One, NEHole(h_e)) => Some(NEHole(Cursor(h_e)))
+        | _ => None
+      }
+      | _ => None
+    }
+  }
+}
+
+/*
+module Action = {
+  [@deriving (sexp, compare)]
+  type t =
+    | Move(Dir.t)
+    | Construct(Shape.t)
+    | Del
+    | Finish;
+};
+*/
+
+/*
+module Shape = {
+  [@deriving (sexp, compare)]
+  type t =
+    | Arrow
+    | Num
+    | Asc
+    | Var(string)
+    | Lam(string)
+    | Ap
+    | Lit(int)
+    | Plus
+    | NEHole;
+};
+*/
+
+// Synthetic and Analytic Expression Actions
+let syn_action =
+    (ctx: typctx, (e: Zexp.t, t: Htyp.t), a: Action.t)
+    : option((Zexp.t, Htyp.t)) => {
+  switch(a) {
+    // SAMove
+    | Move(d) => switch(move_exp(e, d)) {
+      | Some(z_e) => Some((z_e, t))
+      | None => None
+    }
+    // SADel
+    | Del => Some((Cursor(EHole), Hole))
+    // SAFinish
+    | Finish => switch(erase_exp(e)) {
+      | NEHole(h_e) => switch(syn(ctx, h_e)) {
+        | Some(h_t) => Some((Cursor(erase_exp(e)), h_t))
+        | None => None 
+      }
+      | _ => None
+    }
+    | Construct(s) => switch(s) {
+      // SAConApArr
+      | Arrow => raise(Unimplemented)
+      // SAConNumLit
+      | Num => raise(Unimplemented)
+      // SAConAsc
+      | Asc => raise(Unimplemented)
+      // SAConVar
+      | Var(x) => let _ = x; raise(Unimplemented)
+      // SAConLam
+      | Lam(x) => let _ = x; raise(Unimplemented)
+      // SAConApOtw
+      | Ap => raise(Unimplemented)
+      // SAConNumLit
+      | Lit(n) => let _ = n; raise(Unimplemented)
+      | Plus => raise(Unimplemented)
+      | NEHole => raise(Unimplemented)
+    }
+  }
 }
 
 and ana_action =
