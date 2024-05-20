@@ -5,6 +5,6 @@ let ( let* ) = (x: option('a), f: 'a => option('b)) : option('b) =>
   };
   
 let (let+) = (x: option('a), f: 'a => 'b) : option('b) => {
-  let* x = x;
-  Some(f(x));
+  let* x' = x;
+  Some(f(x'));
 };

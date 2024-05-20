@@ -1,5 +1,5 @@
 open Sexplib.Std;
-open Monad_lib.Monad; 
+// open Monad_lib.Monad; 
 
 let compare_string = String.compare;
 let compare_int = Int.compare;
@@ -113,14 +113,14 @@ let rec erase_exp = (e: Zexp.t) : Hexp.t => {
 };
 
 // Function Type Matching
-let matched_arrow = (t: Htyp.t) : (option(Htyp.t), option(Htyp.t)) => {
+let matched_arrow = (t: Htyp.t) : option((Htyp.t, Htyp.t)) => {
   switch(t) {
     // MAArr
-    | Arrow(t_in, t_out) => (Some(t_in), Some(t_out))
+    | Arrow(t_in, t_out) => Some((t_in, t_out))
     // MAHole
-    | Hole => (Some(Hole), Some(Hole))
+    | Hole => Some((Hole, Hole))
     // Exhaust
-    | _ => (None, None);
+    | _ => None;
   }
 };
 
@@ -146,12 +146,13 @@ let rec syn = (ctx: typctx, e: Hexp.t): option(Htyp.t) => {
     | Var(x) => TypCtx.find_opt(x, ctx)
     // SAp
     | Ap(e_1, e_2) => 
-      let* t = syn(ctx, e_1);
-      let (t_in, t_out) = matched_arrow(t);
-      switch (t_in) {
-        | Some(t_in') => ana(ctx, e_2, t_in') ? t_out : None
-        | _ => None
+    switch(syn(ctx, e_1)) {
+      | Some(t) => switch(matched_arrow(t)) {
+        | Some((t_in, t_out)) => ana(ctx, e_2, t_in) ? Some(t_out) : None
+        | None => None
       }
+      | None => None
+    }
     // SNum
     | Lit(_) => Some(Num)
     // SPlus
@@ -175,12 +176,9 @@ and ana = (ctx: typctx, e: Hexp.t, t: Htyp.t): bool => {
   switch(e) {
     // ALam
     | Lam(x, e') => 
-      let (t_in, t_out) = matched_arrow(t);
-      switch(t_in, t_out) {
-        | (Some(t_in'), Some(t_out')) => 
-        let ctx' = TypCtx.add(x, t_in', ctx); 
-        ana(ctx', e', t_out')
-        | _ => false
+      switch(matched_arrow(t)) {
+        | Some((t_in, t_out)) => ana(TypCtx.add(x, t_in, ctx), e', t_out)
+        | None => false
       }
     // ASubsume
     | _ => 
@@ -191,46 +189,46 @@ and ana = (ctx: typctx, e: Hexp.t, t: Htyp.t): bool => {
   }
 };
 
-/* 
-module Hexp = {
-  [@deriving (sexp, compare)]
-  type t =
-    | Var(string)
-    | Lam(string, t)
-    | Ap(t, t)
-    | Lit(int)
-    | Plus(t, t)
-    | Asc(t, Htyp.t)
-    | EHole
-    | NEHole(t);
-};
-*/
-
-/*
-module Zexp = {
-  [@deriving (sexp, compare)]
-  type t =
-    | Cursor(Hexp.t)
-    | Lam(string, t)
-    | LAp(t, Hexp.t)
-    | RAp(Hexp.t, t)
-    | LPlus(t, Hexp.t)
-    | RPlus(Hexp.t, t)
-    | LAsc(t, Htyp.t)
-    | RAsc(Hexp.t, Ztyp.t)
-    | NEHole(t);
-};
-*/
-
-/*
 // Type Actions
-let move_typ = (t: Ztyp.t, a: Action.t) : option(Ztyp.t) => {
-  let _ = t;
-  let _ = a;
-
-  raise(Unimplemented);
+let rec typ_action = (t: Ztyp.t, a: Action.t) : option(Ztyp.t) => {
+  switch(a) {
+    | Move(d) => switch(d, t) {
+      | (Parent, LArrow(z_t_in, h_t_out)) => switch(z_t_in) {
+        // TMArrParent1
+        | Cursor(h_t_in) => Some(Cursor(Arrow(h_t_in, h_t_out)))
+        // TMArrZip1
+        | _ => typ_action(z_t_in, a)
+      }
+      | (Parent, RArrow(h_t_in, z_t_out)) => switch(z_t_out) {
+        // TMArrParent2
+        | Cursor(h_t_out) => Some(Cursor(Arrow(h_t_in, h_t_out)))
+        // TMArrZip2
+        | _ => typ_action(z_t_out, a)
+      }
+      | (Child(which), Cursor(h_t)) => switch(which, h_t) {
+        // TMArrChild1
+        | (One, Arrow(t_in, _)) => Some(Cursor(t_in))
+        // TMArrChild2
+        | (Two, Arrow(_, t_out)) => Some(Cursor(t_out))
+        | _ => None
+      }
+      | _ => None
+    }
+    // TMDel
+    | Del => Some(Cursor(Hole))
+    | Construct(s) => switch(s, t) {
+      // TMConArrow
+      | (Arrow, Cursor(h_t)) => Some(RArrow(h_t, Cursor(Hole)))
+      | (Num, Cursor(h_t)) => switch(h_t) {
+        // TMConNum
+        | Hole => Some(Cursor(Num))
+        | _ => None
+      }
+      | _ => None
+    }
+    | _ => None
+  }
 }
-*/
 
 // Expression Movement Actions
 let move_exp = (e: Zexp.t, d: Dir.t) : option(Zexp.t) => {
@@ -309,55 +307,199 @@ module Shape = {
 };
 */
 
+/* 
+module Hexp = {
+  [@deriving (sexp, compare)]
+  type t =
+    | Var(string)
+    | Lam(string, t)
+    | Ap(t, t)
+    | Lit(int)
+    | Plus(t, t)
+    | Asc(t, Htyp.t)
+    | EHole
+    | NEHole(t);
+};
+*/
+
+/*
+module Zexp = {
+  [@deriving (sexp, compare)]
+  type t =
+    | Cursor(Hexp.t)
+    | Lam(string, t)
+    | LAp(t, Hexp.t)
+    | RAp(Hexp.t, t)
+    | LPlus(t, Hexp.t)
+    | RPlus(Hexp.t, t)
+    | LAsc(t, Htyp.t)
+    | RAsc(Hexp.t, Ztyp.t)
+    | NEHole(t);
+};
+*/
+
+/*
+module Ztyp = {
+  [@deriving (sexp, compare)]
+  type t =
+    | Cursor(Htyp.t)
+    | LArrow(t, Htyp.t)
+    | RArrow(Htyp.t, t);
+};
+*/
+
 // Synthetic and Analytic Expression Actions
-let syn_action =
+let rec syn_action =
     (ctx: typctx, (e: Zexp.t, t: Htyp.t), a: Action.t)
     : option((Zexp.t, Htyp.t)) => {
-  switch(a) {
-    // SAMove
-    | Move(d) => switch(move_exp(e, d)) {
-      | Some(z_e) => Some((z_e, t))
-      | None => None
-    }
-    // SADel
-    | Del => Some((Cursor(EHole), Hole))
-    // SAFinish
-    | Finish => switch(erase_exp(e)) {
-      | NEHole(h_e) => switch(syn(ctx, h_e)) {
-        | Some(h_t) => Some((Cursor(erase_exp(e)), h_t))
-        | None => None 
+      switch(e, a) {
+        // SADel
+        | (Cursor(_), Del) => Some((Cursor(EHole), Hole))
+        // SAfinish
+        | (Cursor(h_e), Finish) => switch(h_e) {
+          | NEHole(h_e) => switch(syn(ctx, h_e)) {
+            | Some(h_t) => Some((Cursor(h_e), h_t))
+            | None => None
+          }
+          | _ => None
+        }
+        // Construction
+        | (Cursor(h_e), Construct(s)) => switch(s) {
+          // SAConAsc
+          | Asc => Some((RAsc(h_e, Cursor(t)), t))
+          // SAConVar
+          | Var(x) => switch(h_e) {
+            | EHole => Some((Cursor(Var(x)), t))
+            | _ => None
+          }
+          // SAConLam
+          | Lam(x) => switch(h_e) {
+            | EHole => 
+            Some((RAsc(Lam(x, EHole), LArrow(Cursor(Hole), Hole)), Arrow(Hole, Hole)))
+            | _ => None
+          }
+          // SAConApOtw : SAConApArr
+          | Ap => raise(Unimplemented)
+          // SAConNumLit
+          | Lit(n) => switch(h_e) {
+            | EHole => Some((Cursor(Lit(n)), Num))
+            | _ => None
+          }
+          // SAConPlus1 : SAConPlus2
+          | Plus => consistent(t, Num) ? 
+          Some((RPlus(h_e, Cursor(EHole)), Num)) : 
+          Some((RPlus(NEHole(h_e), Cursor(EHole)), Num))
+          | NEHole => Some((NEHole(Cursor(h_e)), Hole))
+          | _ => None
+        }
+        // SAMove
+        | (_, Move(d)) => switch(move_exp(e, d)) {
+          | Some(z_e) => Some((z_e, t))
+          | None => None
+        }
+        // Zipper Cases
+        | _ => switch(e) {
+          // SAZipAsc1
+          | LAsc(z_e, h_t) => 
+          switch(ana_action(ctx, z_e, a, t)) {
+            | Some(z_e') => syn_action(ctx, (LAsc(z_e', h_t), t), a)
+            | None => None
+          }
+          // SAZipAsc2
+          | RAsc(h_e, z_t) => 
+          switch(typ_action(z_t, a)) {
+            | Some(z_t') => ana(ctx, h_e, erase_typ(z_t')) ? 
+            syn_action(ctx, (RAsc(h_e, z_t'), erase_typ(z_t')), a) : None
+            | None => None
+          }
+          // SAZipApArr
+          | LAp(z_e, h_e) => 
+          switch(syn(ctx, erase_exp(z_e))) {
+            | Some(t_2) => switch(syn_action(ctx, (z_e, t_2), a)) {
+              | Some((z_e', t_3)) => switch(matched_arrow(t_3)) {
+                | Some((t_4, t_5)) => 
+                ana(ctx, h_e, t_4) ? 
+                syn_action(ctx, (LAp(z_e', h_e), t_5), a) : None
+                | None => None
+              }
+              | None => None
+            }
+            | None => None
+          }
+          // SAZipApAna
+          | RAp(h_e, z_e) => switch(syn(ctx, h_e)) {
+            | Some(t_2) => switch(matched_arrow(t_2)) {
+              | Some((t_3, t_4)) => switch(ana_action(ctx, z_e, a, t_3)) {
+                | Some(z_e') => syn_action(ctx, (RAp(h_e, z_e'), t_4), a)
+                | None => None
+              }
+              | None => None
+            }
+            | None => None
+          }
+          // SAZipPlus1
+          | LPlus(z_e, h_e) => switch(ana_action(ctx, z_e, a, Num)) {
+            | Some(z_e') => syn_action(ctx, (LPlus(z_e', h_e), Num), a)
+            | None => None
+          }
+          // SAZipPlus2
+          | RPlus(h_e, z_e) => switch(ana_action(ctx, z_e, a, Num)) {
+            | Some(z_e') => syn_action(ctx, (RPlus(h_e, z_e'), Num), a)
+            | None => None
+          }
+          // SAZipHole
+          | NEHole(z_e) => switch(syn(ctx, erase_exp(z_e))) {
+            | Some(h_t) => switch(syn_action(ctx, (z_e, h_t), a)) {
+              | Some((z_e', _)) => syn_action(ctx, (NEHole(z_e'), Hole), a)
+              | None => None
+            }
+            | None => None
+          }
+          // Exhaust
+          | _ => None
+        }
       }
-      | _ => None
     }
-    | Construct(s) => switch(s) {
-      // SAConApArr
-      | Arrow => raise(Unimplemented)
-      // SAConNumLit
-      | Num => raise(Unimplemented)
-      // SAConAsc
-      | Asc => raise(Unimplemented)
-      // SAConVar
-      | Var(x) => let _ = x; raise(Unimplemented)
-      // SAConLam
-      | Lam(x) => let _ = x; raise(Unimplemented)
-      // SAConApOtw
-      | Ap => raise(Unimplemented)
-      // SAConNumLit
-      | Lit(n) => let _ = n; raise(Unimplemented)
-      | Plus => raise(Unimplemented)
-      | NEHole => raise(Unimplemented)
-    }
-  }
-}
 
 and ana_action =
     (ctx: typctx, e: Zexp.t, a: Action.t, t: Htyp.t): option(Zexp.t) => {
-  // Used to suppress unused variable warnings
-  // Okay to remove
-  let _ = ctx;
-  let _ = e;
-  let _ = a;
-  let _ = t;
-
-  raise(Unimplemented);
+  switch(e, a) {
+    // AAMove
+    | (_, Move(d)) => move_exp(e, d)
+    // AADel
+    | (Cursor(_), Del) => Some(Cursor(EHole))
+    // Construction
+    | (Cursor(h_e), Construct(s)) => 
+    switch(h_e, s) {
+      // AAConAsc
+      | (_, Asc) => Some(RAsc(h_e, Cursor(t)))
+      // AAConVar
+      | (EHole, Var(x)) => consistent(TypCtx.find(x, ctx), t) ? 
+      None : Some(NEHole(Cursor(Var(x))))
+      // AAConLam1 : AAConLam2
+      | (EHole, Lam(x)) => switch(matched_arrow(t)) {
+        | Some((_, _)) => Some(Lam(x, Cursor(EHole)))
+        | None => Some(NEHole(RAsc(Lam(x, EHole), LArrow(Cursor(Hole), Hole))))
+      }
+      // AAConNumLit
+      | (EHole, Lit(n)) => consistent(t, Num) ? None : Some(NEHole(Cursor(Lit(n))))
+      | _ => None
+    }
+    // AAFinish
+    | (Cursor(h_e), Finish) => switch(h_e) {
+      | NEHole(h_e) => ana(ctx, h_e, t) ? Some(Cursor(h_e)) : None
+      | _ => None
+    }
+    // Zipper Case
+    // AAZipLam
+    | (Lam(x, z_e) , _) => switch(matched_arrow(t)) {
+      | Some((t_1, t_2)) => switch(ana_action(TypCtx.add(x, t_1, ctx), z_e, a, t_2)) {
+        | Some(z_e') => Some(Lam(x, z_e'))
+        | None => None 
+      }
+      | None => None
+    }
+    // Exhaust
+    | _ => None
+  }
 };
