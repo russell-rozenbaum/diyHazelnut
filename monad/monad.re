@@ -1,6 +1,6 @@
 let ( let* ) = (x: option('a), f: 'a => option('b)) : option('b) =>
   switch (x) {
-  | Some(x) => f(x)
+  | Some(x') => f(x')
   | None => None
   };
   

@@ -223,14 +223,55 @@ module Zexp = {
 */
 
 /*
+module Ztyp = {
+  [@deriving (sexp, compare)]
+  type t =
+    | Cursor(Htyp.t)
+    | LArrow(t, Htyp.t)
+    | RArrow(Htyp.t, t);
+};
+*/
+
 // Type Actions
 let move_typ = (t: Ztyp.t, a: Action.t) : option(Ztyp.t) => {
-  let _ = t;
-  let _ = a;
-
-  raise(Unimplemented);
+  switch(a) {
+    | Move(d) => switch(d, t) {
+      | (Parent, LArrow(z_t_in, h_t_out)) => switch(z_t_in) {
+        // TMArrParent1
+        | Cursor(h_t_in) => Some(Cursor(Arrow(h_t_in, h_t_out)))
+        // TMArrZip1
+        | _ => move_typ(z_t_in, a)
+      }
+      | (Parent, RArrow(h_t_in, z_t_out)) => switch(z_t_out) {
+        // TMArrParent2
+        | Cursor(h_t_out) => Some(Cursor(Arrow(h_t_in, h_t_out)))
+        // TMArrZip2
+        | _ => move_typ(z_t_out, a)
+      }
+      | (Child(which), Cursor(h_t)) => switch(which, h_t) {
+        // TMArrChild1
+        | (One, Arrow(t_in, t_out)) => Some(Cursor(t_in))
+        // TMArrChild2
+        | (Two, Arrow(t_in, t_out)) => Some(Cursor(t_out))
+        | _ => None
+      }
+      | _ => None
+    }
+    // TMDel
+    | Del => Cursor(Hole)
+    | Construct(s) => switch(s, t) {
+      // TMConArrow
+      | (Arrow, Cursor(h_t)) => Some(RArrow(h_t, Cursor(Hole)))
+      | (Num, Cursor(h_t)) => switch(h_t) {
+        // TMConNum
+        | Hole => Some(Cursor(Num))
+        | _ => None
+      }
+      | _ => None
+    }
+    | _ => None
+  }
 }
-*/
 
 // Expression Movement Actions
 let move_exp = (e: Zexp.t, d: Dir.t) : option(Zexp.t) => {
@@ -310,7 +351,7 @@ module Shape = {
 */
 
 // Synthetic and Analytic Expression Actions
-let syn_action =
+let rec syn_action =
     (ctx: typctx, (e: Zexp.t, t: Htyp.t), a: Action.t)
     : option((Zexp.t, Htyp.t)) => {
   switch(a) {
