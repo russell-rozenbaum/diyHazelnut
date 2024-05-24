@@ -197,19 +197,33 @@ let rec typ_action = (t: Ztyp.t, a: Action.t) : option(Ztyp.t) => {
         // TMArrParent1
         | Cursor(h_t_in) => Some(Cursor(Arrow(h_t_in, h_t_out)))
         // TMArrZip1
-        | _ => typ_action(z_t_in, a)
+        | _ => switch(typ_action(z_t_in, a)) {
+          | Some(z_t_in') => Some(LArrow(z_t_in', h_t_out))
+          | None => None
+        }
       }
       | (Parent, RArrow(h_t_in, z_t_out)) => switch(z_t_out) {
         // TMArrParent2
         | Cursor(h_t_out) => Some(Cursor(Arrow(h_t_in, h_t_out)))
         // TMArrZip2
-        | _ => typ_action(z_t_out, a)
+        | _ => switch(typ_action(z_t_out, a)) {
+          | Some(z_t_out') => Some(RArrow(h_t_in, z_t_out'))
+          | None => None
+        }
       }
-      | (Child(which), Cursor(h_t)) => switch(which, h_t) {
+      | (Child(which), z_t) => switch(which, z_t) {
         // TMArrChild1
-        | (One, Arrow(t_in, _)) => Some(Cursor(t_in))
+        | (One, Cursor(Arrow(t_in, t_out))) => Some(LArrow(Cursor(t_in), t_out))
         // TMArrChild2
-        | (Two, Arrow(_, t_out)) => Some(Cursor(t_out))
+        | (Two, Cursor(Arrow(t_in, t_out))) => Some(RArrow(t_in, Cursor(t_out)))
+        | (_, LArrow(t_in, t_out)) => switch(typ_action(t_in, a)) {
+          | Some(t_in') => Some(LArrow(t_in', t_out))
+          | None => None
+        }
+        | (_, RArrow(t_in, t_out)) => switch(typ_action(t_out, a)) {
+          | Some(t_out') => Some(RArrow(t_in, t_out'))
+          | None => None
+        }
         | _ => None
       }
       | _ => None
@@ -219,10 +233,23 @@ let rec typ_action = (t: Ztyp.t, a: Action.t) : option(Ztyp.t) => {
     | Construct(s) => switch(s, t) {
       // TMConArrow
       | (Arrow, Cursor(h_t)) => Some(RArrow(h_t, Cursor(Hole)))
-      | (Num, Cursor(h_t)) => switch(h_t) {
-        // TMConNum
-        | Hole => Some(Cursor(Num))
-        | _ => None
+      | (Arrow, LArrow(z_t, h_t)) => switch(typ_action(z_t, a)) {
+        | Some(z_t') => Some(LArrow(z_t', h_t))
+        | None => None
+      }
+      | (Arrow, RArrow(h_t, z_t)) => switch(typ_action(z_t, a)) {
+        | Some(z_t') => Some(RArrow(h_t, z_t'))
+        | None => None
+      }
+      // TMConNum
+      | (Num, Cursor(Hole)) => Some(Cursor(Num))
+      | (Num, LArrow(z_t, h_t)) => switch(typ_action(z_t, a)) {
+        | Some(z_t') => Some(LArrow(z_t', h_t))
+        | None => None
+      }
+      | (Num, RArrow(h_t, z_t)) => switch(typ_action(z_t, a)) {
+        | Some(z_t') => Some(RArrow(h_t, z_t'))
+        | None => None
       }
       | _ => None
     }
@@ -313,6 +340,10 @@ let rec move_exp = (e: Zexp.t, d: Dir.t) : option(Zexp.t) => {
         | Cursor(Ap(h_e_1, h_e_2)) => Some(LAp(Cursor(h_e_1), h_e_2))
         // EMNEHoleChild1
         | Cursor(NEHole(h_e)) => Some(NEHole(Cursor(h_e)))
+        | LAsc(z_e, h_t) => switch(move_exp(z_e, d)) {
+          | Some(z_e') => Some(LAsc(z_e', h_t))
+          | None => None
+        }
         | RAsc(h_e, z_t) => switch(typ_action(z_t, Move(d))) {
           | Some(z_t') => Some(RAsc(h_e, z_t'))
           | None => None
