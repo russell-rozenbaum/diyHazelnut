@@ -231,122 +231,162 @@ let rec typ_action = (t: Ztyp.t, a: Action.t) : option(Ztyp.t) => {
 }
 
 // Expression Movement Actions
-let move_exp = (e: Zexp.t, d: Dir.t) : option(Zexp.t) => {
+let rec move_exp = (e: Zexp.t, d: Dir.t) : option(Zexp.t) => {
   switch(d) {
     | Parent => 
     switch(e) {
       // EMascParent1
-      | LAsc(z_e, h_t) => Some(Cursor(Asc(erase_exp(z_e), h_t)))
+      | LAsc(z_e, h_t) => switch(z_e) {
+        | Cursor(h_e') => Some(Cursor(Asc(h_e', h_t)))
+        | _ => switch(move_exp(z_e, d)) {
+          | Some(h_e'') => Some(LAsc(h_e'', h_t))
+          | None => None
+        }
+      }
       // EMascParent2
-      | RAsc(h_e, z_t) => Some(Cursor(Asc(h_e, erase_typ(z_t))))
+      | RAsc(h_e, z_t) => switch(z_t) {
+        | Cursor(h_t') => Some(Cursor(Asc(h_e, h_t')))
+        | _ => switch(typ_action(z_t, Move(d))) {
+          | Some(z_t') => Some(RAsc(h_e, z_t'))
+          | None => None
+        }
+      }
       // EMLamParent
-      | Lam(x, z_e) => Some(Cursor(Lam(x, erase_exp(z_e))))
+      | Lam(x, z_e) => switch(z_e) {
+        | Cursor(h_e') => Some(Cursor(Lam(x, h_e')))
+        | _ => switch(move_exp(z_e, d)) {
+          | Some(h_e'') => Some(Lam(x, h_e''))
+          | None => None
+        }
+      }
       // EMPlusParent1
-      | LPlus(z_e, h_e) => Some(Cursor(Plus(erase_exp(z_e), h_e)))
+      | LPlus(z_e, h_e) => switch(z_e) {
+        | Cursor(h_e') => Some(Cursor(Plus(h_e', h_e)))
+        | _ => switch(move_exp(z_e, d)) {
+          | Some(h_e'') => Some(LPlus(h_e'', h_e))
+          | None => None
+        }
+      }
       // EMPlusParent2
-      | RPlus(h_e, z_e) => Some(Cursor(Plus(h_e, erase_exp(z_e))))
+      | RPlus(h_e, z_e) => switch(z_e) {
+        | Cursor(h_e') => Some(Cursor(Plus(h_e, h_e')))
+        | _ => switch(move_exp(z_e, d)) {
+          | Some(h_e'') => Some(RPlus(h_e,h_e'' ))
+          | None => None
+        }
+      }
       // EMapParent1
-      | LAp(z_e, h_e) => Some(Cursor(Ap(erase_exp(z_e), h_e)))
+      | LAp(z_e, h_e) => switch(z_e) {
+        | Cursor(h_e') => Some(Cursor(Ap(h_e', h_e)))
+        | _ => switch(move_exp(z_e, d)) {
+          | Some(h_e'') => Some(LAp(h_e'', h_e))
+          | None => None
+        }
+      }
       // EmapParent2
-      | RAp(h_e, z_e) => Some(Cursor(Ap(h_e, erase_exp(z_e))))
+      | RAp(h_e, z_e) => switch(z_e) {
+        | Cursor(h_e') => Some(Cursor(Ap(h_e, h_e')))
+        | _ => switch(move_exp(z_e, d)) {
+          | Some(h_e'') => Some(RAp(h_e, h_e''))
+          | None => None
+        }
+      }
       // EMNEHoleParent
-      | NEHole(z_e) => Some(Cursor(NEHole(erase_exp(z_e))))
-      | _ => None
-    }
-    | Child(which) => 
-    switch(e) {
-      | Cursor(h_e) => 
-      switch(which, h_e) {
-        // EMAscChild1
-        | (One, Asc(h_e, h_t)) => Some(LAsc(Cursor(h_e), h_t))
-        // EMAscChild2
-        | (Two, Asc(h_e, h_t)) => Some(RAsc(h_e, Cursor(h_t)))
-        // EMLamChild1
-        | (One, Lam(x, h_e)) => Some(Lam(x, Cursor(h_e)))
-        // EMPlusChild1
-        | (One, Plus(h_e_l, h_e_r)) => Some(LPlus(Cursor(h_e_l), h_e_r))
-        // EMPlusChild2
-        | (Two, Plus(h_e_l, h_e_r)) => Some(RPlus(h_e_l, Cursor(h_e_r)))
-        // EMApChild1
-        | (One, Ap(h_e_1, h_e_2)) => Some(LAp(Cursor(h_e_1), h_e_2))
-        // EMApChild2
-        | (Two, Ap(h_e_1, h_e_2)) => Some(RAp(h_e_1, Cursor(h_e_2)))
-        // EMNEHoleChild1
-        | (One, NEHole(h_e)) => Some(NEHole(Cursor(h_e)))
-        | _ => None
+      | NEHole(z_e) => switch(z_e) {
+        | Cursor(h_e') => Some(Cursor(NEHole(h_e')))
+        | _ => switch(move_exp(z_e, d)) {
+          | Some(h_e'') => Some(NEHole(h_e''))
+          | None => None
+        }
       }
       | _ => None
     }
+    | Child(One) => 
+    switch(e) {
+        // EMAscChild1
+        | Cursor(Asc(h_e, h_t)) => Some(LAsc(Cursor(h_e), h_t))
+        // EMLamChild1
+        | Cursor(Lam(x, h_e)) => Some(Lam(x, Cursor(h_e)))
+        // EMPlusChild1
+        | Cursor(Plus(h_e_l, h_e_r)) => Some(LPlus(Cursor(h_e_l), h_e_r))
+        // EMApChild1
+        | Cursor(Ap(h_e_1, h_e_2)) => Some(LAp(Cursor(h_e_1), h_e_2))
+        // EMNEHoleChild1
+        | Cursor(NEHole(h_e)) => Some(NEHole(Cursor(h_e)))
+        | RAsc(h_e, z_t) => switch(typ_action(z_t, Move(d))) {
+          | Some(z_t') => Some(RAsc(h_e, z_t'))
+          | None => None
+        }
+        | LPlus(z_e, h_e) => switch(move_exp(z_e, d)) {
+          | Some(z_e') => Some(LPlus(z_e', h_e))
+          | None => None
+        }
+        | RPlus(h_e, z_e) => switch(move_exp(z_e, d)) {
+          | Some(z_e') => Some(RPlus(h_e, z_e'))
+          | None => None
+        }
+        | LAp(z_e, h_e) => switch(move_exp(z_e, d)) {
+          | Some(z_e') => Some(LAp(z_e', h_e))
+          | None => None
+        }
+        | RAp(h_e, z_e) =>switch(move_exp(z_e, d)) {
+          | Some(z_e') => Some(RAp(h_e, z_e'))
+          | None => None
+        }
+        | Lam(x, z_e) => switch(move_exp(z_e, d)) {
+          | Some(z_e') => Some(Lam(x, z_e'))
+          | None => None
+        }
+        | NEHole(z_e) =>  switch(move_exp(z_e, d)) {
+          | Some(z_e') => Some(NEHole(z_e'))
+          | None => None
+        }
+        | _ => None
+      }
+      | Child(Two) =>
+      switch(e) {
+        // EMApChild2
+        | Cursor(Ap(h_e_1, h_e_2)) => Some(RAp(h_e_1, Cursor(h_e_2)))
+        // EMPlusChild2
+        | Cursor(Plus(h_e_l, h_e_r)) => Some(RPlus(h_e_l, Cursor(h_e_r)))
+        // EMAscChild2
+        | Cursor(Asc(h_e, h_t)) => Some(RAsc(h_e, Cursor(h_t)))
+        | LAsc(z_e, h_t) => switch(move_exp(z_e, d)) {
+          | Some(z_e') => Some(LAsc(z_e', h_t))
+          | None => None
+        }
+        | RAsc(h_e, z_t) => switch(typ_action(z_t, Move(d))) {
+          | Some(z_t') => Some(RAsc(h_e, z_t'))
+          | None => None
+        }
+        | LPlus(z_e, h_e) => switch(move_exp(z_e, d)) {
+          | Some(z_e') => Some(LPlus(z_e', h_e))
+          | None => None
+        }
+        | RPlus(h_e, z_e) => switch(move_exp(z_e, d)) {
+          | Some(z_e') => Some(RPlus(h_e, z_e'))
+          | None => None
+        }
+        | LAp(z_e, h_e) => switch(move_exp(z_e, d)) {
+          | Some(z_e') => Some(LAp(z_e', h_e))
+          | None => None
+        }
+        | RAp(h_e, z_e) =>switch(move_exp(z_e, d)) {
+          | Some(z_e') => Some(RAp(h_e, z_e'))
+          | None => None
+        }
+        | Lam(x, z_e) => switch(move_exp(z_e, d)) {
+          | Some(z_e') => Some(Lam(x, z_e'))
+          | None => None
+        }
+        | NEHole(z_e) =>  switch(move_exp(z_e, d)) {
+          | Some(z_e') => Some(NEHole(z_e'))
+          | None => None
+        }
+        | _ => None
+      }
   }
 }
-
-/*
-module Action = {
-  [@deriving (sexp, compare)]
-  type t =
-    | Move(Dir.t)
-    | Construct(Shape.t)
-    | Del
-    | Finish;
-};
-*/
-
-/*
-module Shape = {
-  [@deriving (sexp, compare)]
-  type t =
-    | Arrow
-    | Num
-    | Asc
-    | Var(string)
-    | Lam(string)
-    | Ap
-    | Lit(int)
-    | Plus
-    | NEHole;
-};
-*/
-
-/* 
-module Hexp = {
-  [@deriving (sexp, compare)]
-  type t =
-    | Var(string)
-    | Lam(string, t)
-    | Ap(t, t)
-    | Lit(int)
-    | Plus(t, t)
-    | Asc(t, Htyp.t)
-    | EHole
-    | NEHole(t);
-};
-*/
-
-/*
-module Zexp = {
-  [@deriving (sexp, compare)]
-  type t =
-    | Cursor(Hexp.t)
-    | Lam(string, t)
-    | LAp(t, Hexp.t)
-    | RAp(Hexp.t, t)
-    | LPlus(t, Hexp.t)
-    | RPlus(Hexp.t, t)
-    | LAsc(t, Htyp.t)
-    | RAsc(Hexp.t, Ztyp.t)
-    | NEHole(t);
-};
-*/
-
-/*
-module Ztyp = {
-  [@deriving (sexp, compare)]
-  type t =
-    | Cursor(Htyp.t)
-    | LArrow(t, Htyp.t)
-    | RArrow(Htyp.t, t);
-};
-*/
 
 // Synthetic and Analytic Expression Actions
 let rec syn_action =
