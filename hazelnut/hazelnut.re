@@ -398,9 +398,13 @@ let rec syn_action =
         | (Cursor(h_e), Construct(s)) => switch(s) {
           // SAConAsc
           | Asc => Some((RAsc(h_e, Cursor(t)), t))
-          // SAConVar --- To-do: Fix construction of t
+          // SAConVar --- I'm assuming there's a rule that says
+          //              x must be in the given context
           | Var(x) => switch(h_e) {
-            | EHole => Some((Cursor(Var(x)), t))
+            | EHole => switch(TypCtx.find_opt(x, ctx)) {
+              | Some(t_found) => Some((Cursor(Var(x)), t_found))
+              | None => None
+            }
             | _ => None
           }
           // SAConLam
@@ -509,8 +513,11 @@ and ana_action =
       // AAConAsc
       | (_, Asc) => Some(RAsc(h_e, Cursor(t)))
       // AAConVar
-      | (EHole, Var(x)) => consistent(TypCtx.find(x, ctx), t) ? 
-      subsume(ctx, e, a, t) : Some(NEHole(Cursor(Var(x))))
+      | (EHole, Var(x)) => switch(TypCtx.find_opt(x, ctx)) {
+        | Some(t_found) => consistent(t_found, t) ? 
+        subsume(ctx, e, a, t) : Some(NEHole(Cursor(Var(x))))
+        | None => None
+      }
       // AAConLam1 : AAConLam2
       | (EHole, Lam(x)) => switch(matched_arrow(t)) {
         | Some((_, _)) => Some(Lam(x, Cursor(EHole)))
